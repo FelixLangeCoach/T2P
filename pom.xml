@@ -195,6 +195,11 @@
 			<artifactId>xsdlib</artifactId>
 			<version>20030807</version>
 		</dependency>
+		<dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpclient</artifactId>
+        <version>4.5.13</version> <!-- or whatever the latest version is -->
+    </dependency>
 	</dependencies>
 
 	<build>

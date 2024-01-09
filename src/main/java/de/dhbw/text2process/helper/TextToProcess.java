@@ -1,5 +1,6 @@
 /** modified taken from https://github.com/FabianFriedrich/Text2Process */
 package de.dhbw.text2process.helper;
+import de.dhbw.text2process.llm.helper.MSCaller;
 
 import de.dhbw.text2process.helper.exporter.BPMNExporter;
 import de.dhbw.text2process.helper.exporter.EPCExporter;
@@ -37,6 +38,7 @@ import de.dhbw.text2process.wrapper.StanfordParserFunctionality;
 import edu.stanford.nlp.trees.TypedDependency;
 import java.io.File;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -94,32 +96,37 @@ public class TextToProcess {
 
   public void analyzeText(
       boolean rebuildTextModel, boolean bpmn, File outputFile, boolean newBpmn) {
-    boolean f_bpmn = bpmn;
-    f_analyzer.analyze(processText);
-    if (rebuildTextModel) {
-      TextModel _model = f_builder.createModel(f_analyzer);
-      if (f_textModelControler != null)
-        f_textModelControler.setModels(this, f_analyzer, f_builder, _model);
-    }
-    if (f_bpmn) {
-      if (newBpmn) {
-        BPMNExporter exp = new BPMNExporter();
-        exp.setTextAnalyzer(f_analyzer);
-        exp.goThrough(0);
-        exp.createBPMN(outputFile);
-      } else {
+    //Code hidden for the sake of brevity
+    
+        boolean exceptionOccurred = false;
 
+    try {
+        // New Process 
+        MSCaller caller = new MSCaller();
+        caller.callPythonService(processText.toString());
+    } catch (NullPointerException e) {
+        System.out.println("Caught NullPointerException: " + e.getMessage());
+        System.out.println("Proceeding with the Old Process");
+        exceptionOccurred = true;
+    } catch (ConnectException e) {
+        System.out.println("Caught ConnectException: " + e.getMessage());
+        System.out.println("Proceeding with the Old Process");
+        exceptionOccurred = true;
+    }
+
+    if (exceptionOccurred) {
+        // Old Process
         BPMNModelBuilder _builder = new BPMNModelBuilder(this);
         f_generatedModelBPMN = (BPMNModel) _builder.createProcessModel(f_analyzer.getWorld());
         BPMNExporter exp = new BPMNExporter(f_generatedModelBPMN);
         for (Cluster c : new ArrayList<Cluster>(f_generatedModelBPMN.getClusters())) {
-          if (c instanceof Pool) {
-            Pool pool = (Pool) c;
-            f_pools.add(pool);
-          } else if (c instanceof Lane) {
-            Lane lane = (Lane) c;
-            f_lanes.add(lane);
-          }
+            if (c instanceof Pool) {
+                Pool pool = (Pool) c;
+                f_pools.add(pool);
+            } else if (c instanceof Lane) {
+                Lane lane = (Lane) c;
+                f_lanes.add(lane);
+            }
         }
         f_generatedModelBPMN.getEvents();
         extractBPMNFlowObjects(f_generatedModelBPMN);
@@ -128,17 +135,16 @@ public class TextToProcess {
         exp.addLanes(f_lanes);
         exp.addFlowObjects(f_tasks);
         exp.addGateways(
-            f_generatedModelBPMN.getComplexGateways(),
-            f_generatedModelBPMN.getEventBasedGateways(),
-            f_generatedModelBPMN.getExclusiveGateways(),
-            f_generatedModelBPMN.getInclusiveGateways(),
-            f_generatedModelBPMN.getParallelGateways());
+                f_generatedModelBPMN.getComplexGateways(),
+                f_generatedModelBPMN.getEventBasedGateways(),
+                f_generatedModelBPMN.getExclusiveGateways(),
+                f_generatedModelBPMN.getInclusiveGateways(),
+                f_generatedModelBPMN.getParallelGateways());
         exp.addFlows(f_bflows);
 
         exp.addPools(f_pools);
         exp.end();
         exp.export(outputFile);
-      }
     } else {
       // epc: new (Text2EPC)
       EPCModelBuilder _builder = new EPCModelBuilder(this);
